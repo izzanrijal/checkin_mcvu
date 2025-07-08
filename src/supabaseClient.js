@@ -43,99 +43,137 @@ const createServiceClient = () => {
   return supabase; // Fallback to regular client
 };
 
-// Check in participant at a specific gate
-export const performCheckIn = async (qrCodeId, gateId, gateType, checkedInBy) => {
+// Perform check-in for a participant at a gate
+export const performCheckIn = async (participantId, gateId, gateType, checkedInBy) => {
   try {
-    console.log(`Checking in QR ${qrCodeId} at ${gateType} ${gateId} by ${checkedInBy}`);
-    
-    // Use service role client to bypass RLS for admin operations
+    // Use service role client to bypass RLS
     const client = createServiceClient();
     
-    // 1. First, get the participant ID from the QR code
-    const { data: qrData, error: qrError } = await client
-      .from('participant_qr_codes')
-      .select('participant_id, registration_id')
-      .eq('qr_code_id', qrCodeId)
-      .single();
+    // Check if participant is registered for this gate
+    console.log(`Verifying participant ${participantId} is registered for gate ${gateId}`);
+    const { data: registrations, error: regError } = await client
+      .from('participant_gate_relations')
+      .select('*')
+      .eq('participant_id', participantId)
+      .eq('gate_id', gateId)
+      .eq('gate_type', gateType);
     
-    if (qrError || !qrData) {
-      console.error('QR code not found or error:', qrError);
+    if (regError) {
+      console.error('Error checking participant registration:', regError);
       return { 
         success: false, 
-        message: 'QR code not found', 
-        error: qrError 
+        error: { 
+          message: 'Gagal memeriksa registrasi peserta',
+          code: 'REGISTRATION_CHECK_ERROR'
+        }
       };
     }
     
-    const participantId = qrData.participant_id;
+    if (!registrations || registrations.length === 0) {
+      console.log(`Participant ${participantId} is not registered for gate ${gateId}`);
+      return { 
+        success: false, 
+        error: { 
+          message: 'Peserta tidak terdaftar untuk kegiatan ini',
+          code: 'NOT_REGISTERED'
+        }
+      };
+    }
     
-    console.log(`Found participant ${participantId} for check-in`);
-    
-    // 2. Check if participant is already checked in at this gate
-    const { data: existingCheckIn, error: checkError } = await client
+    // Check if already checked in at this gate
+    console.log(`Checking if participant ${participantId} is already checked in at gate ${gateId}`);
+    const { data: existingCheckIns, error: checkError } = await client
       .from('gate_check_ins')
       .select('id, checked_in_at')
       .eq('participant_id', participantId)
       .eq('gate_id', gateId)
-      .eq('gate_type', gateType)
-      .maybeSingle();
+      .eq('gate_type', gateType);
     
     if (checkError) {
-      console.error('Error checking existing check-in:', checkError);
-      // Continue anyway - treat as not checked in yet
-    }
-    
-    if (existingCheckIn) {
-      console.log('Participant already checked in at:', existingCheckIn.checked_in_at);
+      console.error('Error checking existing check-ins:', checkError);
       return { 
         success: false, 
-        message: `Already checked in at ${new Date(existingCheckIn.checked_in_at).toLocaleTimeString()}`,
-        data: existingCheckIn,
-        alreadyCheckedIn: true
+        error: { 
+          message: 'Gagal memeriksa status check-in',
+          code: 'CHECK_IN_STATUS_ERROR'
+        }
       };
     }
     
-    // 3. Create the check-in record in the new gate_check_ins table
-    const checkInData = {
-      participant_id: participantId,
-      gate_id: gateId,
-      gate_type: gateType,
-      checked_in_by: checkedInBy,
-      checked_in_at: new Date().toISOString()
-    };
-    
-    const { data: insertResult, error: insertError } = await client
-      .from('check_ins')
-      .insert([checkInData]);
-    
-    if (insertError) {
-      console.error('Check-in insert error:', insertError);
-      return { data: null, error: insertError };
+    if (existingCheckIns && existingCheckIns.length > 0) {
+      console.log('Participant already checked in at this gate');
+      return { 
+        success: false, 
+        alreadyCheckedIn: true,
+        checkedInAt: existingCheckIns[0].checked_in_at,
+        error: { 
+          message: 'Peserta sudah melakukan check-in pada kegiatan ini',
+          code: 'ALREADY_CHECKED_IN'
+        }
+      };
     }
     
-    // 6. Also update the participant status if needed
-    // This step depends on your specific business logic
+    // Perform the check-in
+    console.log(`Performing check-in for participant ${participantId} at gate ${gateId}`);
+    const timestamp = new Date().toISOString();
     
+    const { data: checkInData, error: insertError } = await client
+      .from('gate_check_ins')
+      .insert({
+        participant_id: participantId,
+        gate_id: gateId,
+        gate_type: gateType,
+        checked_in_by: checkedInBy,
+        checked_in_at: timestamp
+      })
+      .select()
+      .single();
+    
+    if (insertError) {
+      console.error('Error inserting check-in record:', insertError);
+      return { 
+        success: false, 
+        error: { 
+          message: 'Gagal merekam check-in',
+          code: 'RECORD_CHECK_IN_ERROR'
+        }
+      };
+    }
+    
+    console.log('Check-in successful:', checkInData);
     return { 
-      data: { success: true }, 
-      error: null 
+      success: true, 
+      data: { 
+        participant_id: participantId,
+        gate_id: gateId,
+        gate_type: gateType,
+        checkInId: checkInData.id,
+        timestamp
+      }
     };
+    
   } catch (error) {
-    console.error('Check-in error:', error);
-    return { data: null, error };
+    console.error('Error in performCheckIn:', error);
+    return { 
+      success: false, 
+      error: { 
+        message: 'Terjadi kesalahan tidak terduga saat melakukan check-in',
+        code: 'UNEXPECTED_ERROR'
+      }
+    };
   }
 };
 
-// Get gate participants with proper structure based on database schema
+// Get participants for a specific gate (workshop or symposium)
 export const getGateParticipants = async (gateId, gateType) => {
   try {
-    console.log(`Fetching participants for ${gateType} ${gateId}`);
-    
-    // Create Supabase admin client with service role key
+    // Use service role client to bypass RLS
     const client = createServiceClient();
     
-    // Get gate details
-    let gate;
+    console.log(`Fetching gate details for ${gateId} (${gateType})`);
+    let gate = {};
+    
+    // Get gate details based on type
     if (gateType === 'workshop') {
       const { data, error } = await client
         .from('workshops')
@@ -165,19 +203,19 @@ export const getGateParticipants = async (gateId, gateType) => {
     }
     
     // Get participants from the new view, filtered by gate
-    console.log('Fetching participants from gate_participants_view...');
+    console.log('Fetching participants from participant_gate_relations...');
     const { data: participants, error: participantsError } = await client
-      .from('gate_participants_view')
+      .from('participant_gate_relations')
       .select('*')
       .eq('gate_id', gateId)
-      .eq('gate_type', gateType);
+      .eq('gate_type', gateType === 'ticket' ? 'symposium' : gateType);
     
     if (participantsError) {
       console.error('Error fetching participants:', participantsError);
       return { data: null, error: participantsError };
     }
 
-    console.log(`Found ${participants?.length || 0} participants in view`);
+    console.log(`Found ${participants?.length || 0} participants for gate ${gateId}`);
 
     // Process participants data to match the expected format in components
     const formattedParticipants = participants.map(participant => {
@@ -206,6 +244,107 @@ export const getGateParticipants = async (gateId, gateType) => {
   } catch (error) {
     console.error('Error in getGateParticipants:', error);
     return { data: null, error };
+  }
+};
+
+// Get a participant by QR code
+export const getParticipantByQrCode = async (qrCode) => {
+  try {
+    // Use service role client to bypass RLS
+    const client = createServiceClient();
+    
+    // First, verify the QR code exists
+    const { data: qrData, error: qrError } = await client
+      .from('participant_qr_codes')
+      .select('participant_id')
+      .eq('qr_code_id', qrCode)
+      .single();
+    
+    if (qrError || !qrData) {
+      console.error('Error fetching QR code or QR code not found:', qrError);
+      return { 
+        data: null, 
+        error: { 
+          message: 'QR code tidak ditemukan',
+          code: 'QR_NOT_FOUND' 
+        } 
+      };
+    }
+    
+    // Get participant details
+    const { data: participant, error: participantError } = await client
+      .from('participants')
+      .select(`
+        id,
+        full_name,
+        participant_type,
+        nik,
+        email,
+        phone,
+        institution
+      `)
+      .eq('id', qrData.participant_id)
+      .single();
+    
+    if (participantError || !participant) {
+      console.error('Error fetching participant:', participantError);
+      return { 
+        data: null, 
+        error: { 
+          message: 'Peserta tidak ditemukan',
+          code: 'PARTICIPANT_NOT_FOUND'
+        } 
+      };
+    }
+    
+    // Get all gates this participant is registered for
+    const { data: gates, error: gatesError } = await client
+      .from('participant_gate_relations')
+      .select(`
+        gate_id,
+        gate_type,
+        gate_name,
+        checked_in,
+        checked_in_at
+      `)
+      .eq('participant_id', participant.id);
+    
+    if (gatesError) {
+      console.error('Error fetching participant gates:', gatesError);
+      return { 
+        data: null, 
+        error: { 
+          message: 'Gagal mengambil data kegiatan peserta',
+          code: 'GATES_FETCH_ERROR'  
+        } 
+      };
+    }
+    
+    // Format response
+    const formattedParticipant = {
+      id: participant.id,
+      name: participant.full_name,
+      type: participant.participant_type,
+      nik: participant.nik,
+      email: participant.email,
+      phone: participant.phone,
+      institution: participant.institution,
+      qr_code: qrCode,
+      gates: gates || []
+    };
+    
+    return { 
+      data: formattedParticipant 
+    };
+  } catch (error) {
+    console.error('Error in getParticipantByQrCode:', error);
+    return { 
+      data: null, 
+      error: { 
+        message: 'Terjadi kesalahan saat memproses QR code',
+        code: 'PROCESS_ERROR'
+      } 
+    };
   }
 };
 
