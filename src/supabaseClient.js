@@ -7,6 +7,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true
+  },
+  global: {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
   }
 });
 
@@ -37,6 +42,11 @@ const createServiceClient = () => {
       auth: {
         autoRefreshToken: false,
         persistSession: false
+      },
+      global: {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        },
       }
     });
   }
@@ -111,6 +121,52 @@ export const performCheckIn = async (participantId, gateId, gateType, checkedInB
           code: 'ALREADY_CHECKED_IN'
         }
       };
+    }
+    
+    // For symposium, we need to handle duplicate entries
+    if (gateType === 'symposium') {
+      console.log('Handling symposium check-in specially to avoid duplicates');
+      
+      // First, check if there are any duplicate participant_gate_relations entries for this symposium
+      const { data: duplicateRelations, error: dupError } = await client
+        .from('participant_gate_relations')
+        .select('participant_id, gate_id') // Use existing columns instead of 'id'
+        .eq('participant_id', participantId)
+        .eq('gate_type', 'symposium')
+        .eq('gate_id', gateId);
+        
+      if (dupError) {
+        // Log error but continue with check-in process
+        console.warn('Warning checking for duplicate relations (non-critical):', dupError);
+      } else {
+        console.log(`Found ${duplicateRelations?.length || 0} relations for this symposium`);
+      }
+      
+      // Check if any previous check-ins for this symposium
+      const { data: anyCheckIns, error: anyCheckError } = await client
+        .from('gate_check_ins')
+        .select('id')
+        .eq('participant_id', participantId)
+        .eq('gate_type', 'symposium')
+        .eq('gate_id', gateId);
+      
+      if (anyCheckError) {
+        console.error('Error checking for any check-ins:', anyCheckError);
+      } else if (anyCheckIns && anyCheckIns.length > 0) {
+        console.log(`Found ${anyCheckIns.length} previous check-ins, will delete them first`);
+        
+        // Delete any existing check-ins for this participant at this symposium
+        const { error: deleteError } = await client
+          .from('gate_check_ins')
+          .delete()
+          .eq('participant_id', participantId)
+          .eq('gate_type', 'symposium')
+          .eq('gate_id', gateId);
+        
+        if (deleteError) {
+          console.error('Error deleting previous check-ins:', deleteError);
+        }
+      }
     }
     
     // Perform the check-in
@@ -202,10 +258,10 @@ export const getGateParticipants = async (gateId, gateType) => {
       gate = { ...data, type: 'ticket' };
     }
     
-    // Get participants from the new view, filtered by gate
-    console.log('Fetching participants from participant_gate_relations...');
+    // Get participants from the new deduplicated view, filtered by gate
+    console.log('Fetching participants from unique_participant_gate_relations...');
     const { data: participants, error: participantsError } = await client
-      .from('participant_gate_relations')
+      .from('unique_participant_gate_relations')
       .select('*')
       .eq('gate_id', gateId)
       .eq('gate_type', gateType === 'ticket' ? 'symposium' : gateType);
@@ -320,6 +376,25 @@ export const getParticipantByQrCode = async (qrCode) => {
       };
     }
     
+    // Deduplicate gates based on gate_id and gate_type
+    const uniqueGatesMap = {};
+    
+    if (gates && gates.length > 0) {
+      gates.forEach(gate => {
+        // Create a unique key for each gate using gate_id and gate_type
+        const uniqueKey = `${gate.gate_type}_${gate.gate_id}`;
+        
+        // Only add the gate if it doesn't already exist in the map
+        // If it exists already, keep the one with checked_in=true if present
+        if (!uniqueGatesMap[uniqueKey] || gate.checked_in) {
+          uniqueGatesMap[uniqueKey] = gate;
+        }
+      });
+    }
+    
+    // Convert the map back to an array
+    const uniqueGates = Object.values(uniqueGatesMap);
+    
     // Format response
     const formattedParticipant = {
       id: participant.id,
@@ -330,7 +405,7 @@ export const getParticipantByQrCode = async (qrCode) => {
       phone: participant.phone,
       institution: participant.institution,
       qr_code: qrCode,
-      gates: gates || []
+      gates: uniqueGates || [] // Use deduplicated gates
     };
     
     return { 

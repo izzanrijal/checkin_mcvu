@@ -250,7 +250,7 @@ class Scanner extends Component {
       
       // Get current user ID for checked_in_by
       const auth = this.props.supabaseAuth;
-      const checkedInBy = auth?.user?.id || 'unknown';
+      const checkedInBy = auth?.user?.id || null; // Use null instead of 'unknown' for UUID field
       
       const { participantData } = this.state;
       
