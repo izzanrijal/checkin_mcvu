@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* QR Scanner specific styles */
+#qr-reader {
+  border: none !important;
+  border-radius: 0.5rem !important;
+  overflow: hidden !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+#qr-reader__dashboard {
+  background: #1f2937 !important;
+  color: #e5e7eb !important;
+  padding: 1rem !important;
+}
+
+#qr-reader__dashboard_section {
+  background: #374151 !important;
+  border-radius: 0.5rem !important;
+  margin: 0.5rem 0 !important;
+  padding: 0.5rem !important;
+}
+
+#qr-reader__dashboard_section_csr {
+  background: #374151 !important;
+  border-radius: 0.5rem !important;
+  margin: 0.5rem 0 !important;
+  padding: 0.5rem !important;
+}
+
+#qr-reader__camera_selection {
+  background: #4b5563 !important;
+  color: #e5e7eb !important;
+  border: 1px solid #6b7280 !important;
+  border-radius: 0.25rem !important;
+  padding: 0.5rem !important;
+  width: 100% !important;
+}
+
+#qr-reader__camera_permission_button {
+  background: #3b82f6 !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 0.25rem !important;
+  padding: 0.5rem 1rem !important;
+  cursor: pointer !important;
+}
+
+#qr-reader__camera_permission_button:hover {
+  background: #2563eb !important;
+}
+
+#qr-reader__scan_region {
+  border: 2px solid #3b82f6 !important;
+  border-radius: 0.5rem !important;
+  max-width: 100% !important;
+  position: relative !important;
+}
+
+#qr-reader__scan_region img,
+#qr-reader__scan_region video {
+  max-width: 100% !important;
+  border-radius: 0.5rem !important;
+  display: block !important;
+}
+
+#qr-reader__scan_region canvas {
+  max-width: 100% !important;
+  border-radius: 0.5rem !important;
+}
+
+/* Torch button styling */
+#qr-reader__torch_button {
+  background: #f59e0b !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 0.25rem !important;
+  padding: 0.5rem !important;
+  margin: 0.25rem !important;
+  cursor: pointer !important;
+}
+
+#qr-reader__torch_button:hover {
+  background: #d97706 !important;
+}
+
+/* Status text styling */
+#qr-reader__status_span {
+  color: #e5e7eb !important;
+  font-size: 0.875rem !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 400px) {
+  #qr-reader {
+    font-size: 0.875rem !important;
+  }
+  
+  #qr-reader__scan_region {
+    max-width: 300px !important;
+    max-height: 300px !important;
+    margin: 0 auto !important;
+  }
+  
+  #qr-reader__dashboard {
+    padding: 0.5rem !important;
+  }
+}
+
+@media (max-width: 360px) {
+  #qr-reader__scan_region {
+    max-width: 280px !important;
+    max-height: 280px !important;
+  }
+}
+
+/* Custom scrollbar for drawer */
+.drawer-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.drawer-content::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+.drawer-content::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 2px;
+}
+
+.drawer-content::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Hover effect for table rows */
+.hover\:bg-gray-750:hover {
+  background-color: #2d3748;
+}
+
+/* Ensure proper mobile touch targets */
+@media (max-width: 768px) {
+  button, select, input {
+    min-height: 44px;
+  }
+}
