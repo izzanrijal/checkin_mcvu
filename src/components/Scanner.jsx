@@ -476,13 +476,21 @@ class Scanner extends Component {
                                 </div>
                                 
                                 {isCurrentGate && !alreadyCheckedIn && (
-                                  <button 
-                                    className={`px-3 py-2 rounded-md text-sm font-medium ${isProcessingCheckIn || checkInSuccess ? 'bg-green-800 text-green-200 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                                    onClick={() => this.handleCheckIn(gate.gate_id, gate.gate_type)}
-                                    disabled={isProcessingCheckIn || checkInSuccess}
-                                  >
-                                    {isProcessingCheckIn ? 'Processing...' : 'Check-in Now'}
-                                  </button>
+                                  <div>
+                                    {participantData.payment_status === 'paid' ? (
+                                      <button 
+                                        className={`px-3 py-2 rounded-md text-sm font-medium ${isProcessingCheckIn || checkInSuccess ? 'bg-green-800 text-green-200 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                                        onClick={() => this.handleCheckIn(gate.gate_id, gate.gate_type)}
+                                        disabled={isProcessingCheckIn || checkInSuccess}
+                                      >
+                                        {isProcessingCheckIn ? 'Processing...' : 'Check-in Now'}
+                                      </button>
+                                    ) : (
+                                      <div className="bg-red-900 text-red-200 px-3 py-2 rounded-md text-sm">
+                                        Pembayaran Belum Terverifikasi
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             );
