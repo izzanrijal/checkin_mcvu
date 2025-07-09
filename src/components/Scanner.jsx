@@ -349,7 +349,7 @@ class Scanner extends Component {
         {currentGateId && currentGateType && (
           <div className="mb-4 text-center">
             <span className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm font-medium">
-              Gate: {currentGateName || `${currentGateType} ${currentGateId}`}
+              {currentGateName || "Kegiatan tidak teridentifikasi"}
             </span>
           </div>
         )}

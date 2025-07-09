@@ -38,14 +38,21 @@ class GateSelect extends Component {
     const [gateId, gateType] = value.split('|');
     this.setState({ selectedGate: value });
     
-    // Store in sessionStorage
+    // Find the selected gate to get its name
+    const selectedGate = this.state.gates.find(gate => gate.id === gateId && gate.type === gateType);
+    const gateName = selectedGate ? selectedGate.name : '';
+    
+    // Store in sessionStorage (including gate name)
     sessionStorage.setItem('gate_id', gateId);
     sessionStorage.setItem('gate_type', gateType);
+    sessionStorage.setItem('gate_name', gateName);
+    
+    console.log(`Selected gate: ${gateName} (${gateType} ${gateId})`);
     
     // If we're on the participant list page, trigger a refresh
     if (window.location.hash === '#list' || window.participantListRef) {
       // Dispatch a custom event to trigger list refresh
-      window.dispatchEvent(new CustomEvent('gateChanged', { detail: { gateId, gateType } }));
+      window.dispatchEvent(new CustomEvent('gateChanged', { detail: { gateId, gateType, gateName } }));
     }
   };
 
