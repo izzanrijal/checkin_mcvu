@@ -129,7 +129,7 @@ class ParticipantTable extends Component {
           <p className="text-xs text-gray-500">NIK: {participant.nik || 'N/A'}</p>
         </div>
         <div className="flex space-x-2">
-          {this.renderStatusIcon(participant.payment_status === 'verified')}
+          {this.renderStatusIcon(participant.payment_status === 'paid' || participant.payment_status === 'verified')}
           {this.renderStatusIcon(participant.checked_in)}
         </div>
       </div>
@@ -141,8 +141,8 @@ class ParticipantTable extends Component {
         </div>
         <div className="flex justify-between">
           <span>Paid:</span>
-          <span className={participant.payment_status === 'verified' ? 'text-green-400' : 'text-red-400'}>
-            {participant.payment_status === 'verified' ? 'Yes' : 'No'}
+          <span className={participant.payment_status === 'paid' || participant.payment_status === 'verified' ? 'text-green-400' : 'text-red-400'}>
+            {participant.payment_status === 'paid' || participant.payment_status === 'verified' ? 'Yes' : 'No'}
           </span>
         </div>
         <div className="flex justify-between">
@@ -177,6 +177,9 @@ class ParticipantTable extends Component {
       </td>
       <td className="px-3 py-2 text-xs text-gray-300">{participant.institution || 'N/A'}</td>
       <td className="px-3 py-2 text-xs text-gray-300">{participant.phone || 'N/A'}</td>
+      <td className="px-3 py-2 text-center">
+        {this.renderStatusIcon(participant.payment_status === 'paid' || participant.payment_status === 'verified')}
+      </td>
       <td className="px-3 py-2 text-center">
         {this.renderStatusIcon(participant.checked_in)}
       </td>
@@ -269,6 +272,9 @@ class ParticipantTable extends Component {
                     </th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Phone
+                    </th>
+                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Paid
                     </th>
                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Checked In
