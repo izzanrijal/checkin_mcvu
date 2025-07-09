@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
-import { RefreshCw, Search, Check, X } from 'lucide-react';
+import { RefreshCw, Search, Check, X, FileDown } from 'lucide-react';
 import { getGateParticipants } from '../supabaseClient';
+import * as XLSX from 'xlsx';
 
 class ParticipantTable extends Component {
   constructor(props) {
@@ -10,7 +11,8 @@ class ParticipantTable extends Component {
       filteredParticipants: [],
       loading: false,
       error: null,
-      searchTerm: ''
+      searchTerm: '',
+      successMessage: null
     };
   }
 
@@ -119,6 +121,59 @@ class ParticipantTable extends Component {
     });
   };
 
+  exportToExcel = () => {
+    const { filteredParticipants, gateName } = this.state;
+    
+    if (!filteredParticipants || filteredParticipants.length === 0) {
+      this.setState({ error: 'No data to export' });
+      setTimeout(() => this.setState({ error: null }), 3000);
+      return;
+    }
+
+    try {
+      // Prepare data for export
+      const exportData = filteredParticipants.map(participant => ({
+        'QR Code': participant.qr_code || '-',
+        'No. Registrasi': participant.registration_number || '-',
+        'Nama': participant.name || '-',
+        'Institusi': participant.institution || '-',
+        'No. Telepon': participant.phone || '-',
+        'Status Pembayaran': (participant.payment_status === 'paid' || participant.payment_status === 'verified') ? 'Lunas' : 'Belum Lunas',
+        'Check-in': participant.checked_in ? 'Ya' : 'Tidak',
+        'Waktu Check-in': this.formatDateTime(participant.checked_in_at),
+        'Admin': participant.checked_in_by || '-'
+      }));
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Participants');
+      
+      // Generate filename with date
+      const date = new Date();
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Get gate name from sessionStorage (like in Scanner) or fall back to state
+      const sessionGateName = sessionStorage.getItem('gate_name');
+      const nameForFile = sessionGateName || gateName || 'Unknown_Gate';
+      
+      const fileName = `Peserta_${nameForFile.replace(/\s+/g, '_')}_${dateStr}.xlsx`;
+      
+      // Export
+      XLSX.writeFile(wb, fileName);
+
+      // Show success message
+      this.setState({ successMessage: 'Data berhasil diexport ke Excel' });
+      setTimeout(() => this.setState({ successMessage: null }), 3000);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      this.setState({ error: 'Failed to export data: ' + error.message });
+      setTimeout(() => this.setState({ error: null }), 5000);
+    }
+  };
+
   renderMobileCard = (participant, index) => (
     <div key={index} className="bg-gray-800 rounded-lg p-4 space-y-3">
       <div className="flex justify-between items-start">
@@ -191,20 +246,38 @@ class ParticipantTable extends Component {
   );
 
   render() {
-    const { filteredParticipants, loading, error, searchTerm } = this.state;
+    const { participants, filteredParticipants, loading, error, searchTerm, successMessage } = this.state;
 
     return (
       <div className="space-y-4">
+        {/* Success Message */}
+        {successMessage && (
+          <div className="p-4 bg-green-900 border border-green-700 text-green-200 rounded-lg mb-4">
+            {successMessage}
+          </div>
+        )}
+        
         {/* Header with Refresh Button */}
         <div className="flex items-center justify-between">
-          <button
-            onClick={this.loadParticipants}
-            disabled={loading}
-            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={this.loadParticipants}
+              disabled={loading}
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+            
+            <button 
+              onClick={this.exportToExcel}
+              className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
+              disabled={loading || filteredParticipants.length === 0}
+            >
+              <FileDown className="w-4 h-4" />
+              <span>Export Excel</span>
+            </button>
+          </div>
           
           <div className="text-sm text-gray-400">
             {filteredParticipants.length} participants
