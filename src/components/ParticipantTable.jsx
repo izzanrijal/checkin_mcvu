@@ -259,15 +259,19 @@ class ParticipantTable extends Component {
         
         {/* Header with Refresh Button */}
         <div className="flex items-center justify-between">
+          <button
+            onClick={this.loadParticipants}
+            disabled={loading}
+            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+          
           <div className="flex items-center space-x-2">
-            <button
-              onClick={this.loadParticipants}
-              disabled={loading}
-              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
+            <div className="text-sm text-gray-400">
+              {filteredParticipants.length} participants
+            </div>
             
             <button 
               onClick={this.exportToExcel}
@@ -277,10 +281,6 @@ class ParticipantTable extends Component {
               <FileDown className="w-4 h-4" />
               <span>Export Excel</span>
             </button>
-          </div>
-          
-          <div className="text-sm text-gray-400">
-            {filteredParticipants.length} participants
           </div>
         </div>
 
