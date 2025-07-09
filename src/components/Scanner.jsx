@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { getParticipantByQrCode, performCheckIn } from '../supabaseClient';
-import { Check } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import '../styles/scanner-custom.css';
 
 class Scanner extends Component {
@@ -20,7 +20,10 @@ class Scanner extends Component {
       checkInError: null,
       isProcessing: false,
       manualQrCode: '',
-      isSubmittingManual: false
+      isSubmittingManual: false,
+      modalStartY: 0,
+      modalCurrentY: 0,
+      isDragging: false
     };
     this.scanner = null;
     this.scannerElementId = 'qr-reader';
@@ -363,17 +366,54 @@ class Scanner extends Component {
   
   closeParticipantModal = () => {
     console.log('Menutup modal dan me-restart scanner...');
-    this.setState({ 
-      showParticipantModal: false, 
+    this.setState({
+      showParticipantModal: false,
       participantData: null,
       checkInSuccess: false,
-      checkInError: null
+      checkInError: null,
+      modalStartY: 0,
+      modalCurrentY: 0,
+      isDragging: false
     }, () => {
-      // Restart scanner dengan metode startScanning setelah modal ditutup
-      setTimeout(() => {
-        this.startScanning();
-      }, 500);
+      // Restart scanning when modal is closed if we were scanning before
+      if (this.state.isScanning) {
+        // Need a small delay to ensure DOM is updated
+        setTimeout(() => this.initializeScanner(), 300);
+      }
     });
+  };
+
+  // Modal touch handlers for swipe-to-close functionality
+  handleTouchStart = (e) => {
+    this.setState({
+      modalStartY: e.touches[0].clientY,
+      isDragging: true
+    });
+  };
+
+  handleTouchMove = (e) => {
+    if (!this.state.isDragging) return;
+    
+    const currentY = e.touches[0].clientY;
+    const deltaY = currentY - this.state.modalStartY;
+    
+    // Only allow dragging downward
+    if (deltaY > 0) {
+      this.setState({ modalCurrentY: deltaY });
+    }
+  };
+
+  handleTouchEnd = () => {
+    if (this.state.modalCurrentY > 100) {
+      // If dragged down more than threshold, close modal
+      this.closeParticipantModal();
+    } else {
+      // Reset position
+      this.setState({
+        modalCurrentY: 0,
+        isDragging: false
+      });
+    }
   };
 
   render() {
@@ -486,15 +526,31 @@ class Scanner extends Component {
         
         {/* Participant Modal */}
         {showParticipantModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden w-full max-w-3xl">
-              <div className="border-b border-gray-700 p-4 flex justify-between items-center">
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center z-50 p-0 md:p-4 md:items-center">
+            <div 
+              className="bg-gray-800 rounded-t-lg md:rounded-lg shadow-lg overflow-hidden w-full max-w-3xl"
+              style={{ 
+                transform: `translateY(${this.state.modalCurrentY}px)`,
+                transition: this.state.isDragging ? 'none' : 'transform 0.3s ease-out'
+              }}
+              onTouchStart={this.handleTouchStart}
+              onTouchMove={this.handleTouchMove}
+              onTouchEnd={this.handleTouchEnd}
+            >
+              {/* Grab handle for mobile - visual indicator that modal can be swiped down */}
+              <div className="md:hidden w-full flex justify-center pt-2 pb-1">
+                <div className="w-16 h-1 bg-gray-600 rounded-full"></div>
+              </div>
+              
+              {/* Fixed header for better mobile UX */}
+              <div className="sticky top-0 z-10 border-b border-gray-700 p-4 flex justify-between items-center bg-gray-800">
                 <h3 className="text-lg font-medium text-white">Data Peserta</h3>
                 <button 
                   onClick={this.closeParticipantModal}
-                  className="text-gray-400 hover:text-white"
+                  className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
+                  aria-label="Tutup"
                 >
-                  ✕
+                  <X size={24} />
                 </button>
               </div>
               
@@ -592,7 +648,7 @@ class Scanner extends Component {
               
               <div className="border-t border-gray-700 p-4 flex justify-end">
                 <button 
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md"
+                  className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-md text-base w-full md:w-auto"
                   onClick={this.closeParticipantModal}
                 >
                   Tutup
