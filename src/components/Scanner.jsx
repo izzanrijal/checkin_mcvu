@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { getParticipantByQrCode, performCheckIn } from '../supabaseClient';
 import { Check } from 'lucide-react';
+import '../styles/scanner-custom.css';
 
 class Scanner extends Component {
   constructor(props) {

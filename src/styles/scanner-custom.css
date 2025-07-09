@@ -1,0 +1,150 @@
+/* Custom styles for the QR scanner to improve UX and dark theme compatibility */
+
+/* Dashboard section styling */
+#qr-reader__dashboard_section {
+  background-color: #1f2937 !important; /* Dark background */
+  padding: 16px !important;
+  border-radius: 8px !important;
+  margin-bottom: 16px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  width: 100% !important;
+}
+
+/* Camera selection dropdown */
+#html5-qrcode-select-camera {
+  background-color: #374151 !important;
+  color: #f3f4f6 !important;
+  border: 1px solid #4b5563 !important;
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+  margin-right: 8px !important;
+  cursor: pointer !important;
+  outline: none !important;
+  max-width: 220px !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Camera label */
+#qr-reader__dashboard_section_csr > span {
+  color: #f3f4f6 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  margin-right: 8px !important;
+  display: inline-block !important;
+}
+
+/* Start/Stop Scanning button */
+#html5-qrcode-button-camera-start,
+#html5-qrcode-button-camera-stop {
+  background-color: #2563eb !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 8px 16px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s !important;
+}
+
+#html5-qrcode-button-camera-stop {
+  background-color: #dc2626 !important;
+}
+
+#html5-qrcode-button-camera-start:hover {
+  background-color: #1d4ed8 !important;
+}
+
+#html5-qrcode-button-camera-stop:hover {
+  background-color: #b91c1c !important;
+}
+
+#html5-qrcode-button-camera-start:disabled,
+#html5-qrcode-button-camera-stop:disabled {
+  background-color: #6b7280 !important;
+  cursor: not-allowed !important;
+}
+
+/* Scan region styling */
+#qr-reader__scan_region {
+  background-color: #1f2937 !important;
+  border: 3px solid #3b82f6 !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  position: relative !important;
+}
+
+/* Scan region text and icons */
+#qr-reader__scan_region img {
+  filter: brightness(1.5) !important; /* Make icon brighter */
+}
+
+#qr-reader__scan_region br + span,
+#qr-reader__scan_region br + p,
+#qr-reader__scan_region br + div {
+  color: #f3f4f6 !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  margin-top: 12px !important;
+  display: block !important;
+}
+
+/* Scanner display */
+#qr-reader__scan_region video {
+  border-radius: 8px !important;
+  border: 2px solid #4b5563 !important;
+}
+
+/* QR box */
+.qr-code-scanner__overlay {
+  border: 4px solid #3b82f6 !important;
+}
+
+/* Scanner instructions */
+#qr-reader__scan_region:before {
+  content: "Arahkan kamera ke QR code peserta";
+  color: #f3f4f6;
+  font-size: 15px;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* Make the file upload section more visible */
+#qr-reader__dashboard_section div[style*="text-align: center"] {
+  border: 2px dashed #3b82f6 !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+}
+
+#qr-reader__dashboard_section label {
+  color: #f3f4f6 !important;
+  font-size: 14px !important;
+}
+
+/* Zoom control */
+#html5-qrcode-input-range-zoom {
+  background: #4b5563 !important;
+  height: 8px !important;
+}
+
+/* Custom mobile-responsive layout */
+@media (max-width: 640px) {
+  #qr-reader__dashboard_section_csr {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+  
+  #qr-reader__dashboard_section_csr > span {
+    margin-right: 0 !important;
+  }
+  
+  #html5-qrcode-select-camera {
+    max-width: 100% !important;
+    margin-right: 0 !important;
+  }
+}
