@@ -3,31 +3,21 @@ module.exports = {
     {
       name: "bolt-scanner",
       script: "npm",
-      args: "run preview",
+      args: "start",
       cwd: "./",
-      instances: 1,
-      autorestart: true,
+      instances: "max",
+      exec_mode: "cluster",
       watch: false,
-      max_memory_restart: "1G",
       env: {
+        PORT: 3008,
         NODE_ENV: "production",
-        PORT: 3060,
-        VITE_PUBLIC_URL: "https://scan.perkimakassar.com"
+        NEXT_PUBLIC_APP_URL: "https://scan.perkimakassar.com"
       },
-      // Post deployment hooks
-      post_update: [
-        "echo 'Starting post-pull deployment process...'",
-        "npm install",
-        "npm run build",
-        "echo 'Deployment process completed, restarting application...'"
-      ]
-    }
+      max_memory_restart: "1G",
+      error_file: "./logs/err.log",
+      out_file: "./logs/out.log",
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+    },
   ],
-  // Custom deployment commands
-  deploy: {
-    production: {
-      "post-deploy": "npm install && npm run build && pm2 reload ecosystem.cjs --env production",
-      "pre-setup": ""
-    }
-  }
 };
