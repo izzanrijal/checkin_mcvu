@@ -11,7 +11,8 @@ module.exports = {
       max_memory_restart: "1G",
       env: {
         NODE_ENV: "production",
-        PORT: 3060
+        PORT: 3060,
+        VITE_PUBLIC_URL: "https://scan.perkimakassar.com"
       },
       // Post deployment hooks
       post_update: [
