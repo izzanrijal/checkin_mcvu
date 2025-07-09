@@ -288,7 +288,8 @@ export const getGateParticipants = async (gateId, gateType) => {
           registration_id: participant.registration_id,
           payment_status: participant.payment_status || 'unverified',
           checked_in: participant.checked_in,
-          checked_in_at: participant.checked_in_at
+          checked_in_at: participant.checked_in_at,
+          checked_in_by_email: participant.checked_in_by_email
         };
       });
 
@@ -328,7 +329,8 @@ export const getGateParticipants = async (gateId, gateType) => {
           registration_id: participant.registration_id,
           payment_status: participant.payment_status || 'unverified',
           checked_in: participant.checked_in,
-          checked_in_at: participant.checked_in_at
+          checked_in_at: participant.checked_in_at,
+          checked_in_by_email: participant.checked_in_by_email
         };
       });
 

@@ -183,7 +183,7 @@ class ParticipantTable extends Component {
       <td className="px-3 py-2 text-xs text-gray-300">
         {this.formatDateTime(participant.checked_in_at) || '-'}
       </td>
-      <td className="px-3 py-2 text-xs text-gray-300">-</td>
+      <td className="px-3 py-2 text-xs text-gray-300">{participant.checked_in_by_email || '-'}</td>
     </tr>
   );
 
