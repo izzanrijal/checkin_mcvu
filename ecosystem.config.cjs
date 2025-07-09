@@ -26,7 +26,7 @@ module.exports = {
   // Custom deployment commands
   deploy: {
     production: {
-      "post-deploy": "npm install && npm run build && pm2 reload ecosystem.cjs --env production",
+      "post-deploy": "npm install --legacy-peer-deps && npm run build && pm2 reload ecosystem.config.cjs --env production",
       "pre-setup": ""
     }
   }
