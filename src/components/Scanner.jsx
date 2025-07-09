@@ -18,7 +18,9 @@ class Scanner extends Component {
       isProcessingCheckIn: false,
       checkInSuccess: false,
       checkInError: null,
-      isProcessing: false
+      isProcessing: false,
+      manualQrCode: '',
+      isSubmittingManual: false
     };
     this.scanner = null;
     this.scannerElementId = 'qr-reader';
@@ -150,76 +152,64 @@ class Scanner extends Component {
     });
   };
 
-  onScanSuccess = async (qrCode) => {
-    // Cek apakah scanner aktif dan modal tidak sedang ditampilkan
-    if (this.state.scanning && !this.state.showParticipantModal) {
-      try {
-        // Matikan pemindaian dan set status memproses
-        this.setState({ scanning: false, isProcessing: true });
-        console.log(`QR Code detected: ${qrCode}`);
-        
-        // Get participant data from QR code
-        const { data, error } = await getParticipantByQrCode(qrCode);
-        
-        if (error) {
-          console.error('QR code lookup error:', error);
-          this.setState({ 
-            error: error.message || "QR code tidak valid", 
-            isProcessing: false 
-          });
-          
-          // Re-enable scanning after error dengan delay
-          setTimeout(() => {
-            if (!this.state.showParticipantModal) {
-              this.setState({ scanning: true });
-            }
-          }, 2000);
-          return;
-        }
-        
-        if (!data) {
-          this.setState({ 
-            error: "Tidak ada data peserta untuk QR code ini", 
-            isProcessing: false 
-          });
-          
-          // Re-enable scanning after error dengan delay
-          setTimeout(() => {
-            if (!this.state.showParticipantModal) {
-              this.setState({ scanning: true });
-            }
-          }, 2000);
-          return;
-        }
-        
-        console.log('Participant data:', data);
-        
-        // Tampilkan modal data peserta dan hentikan pemindaian
-        // Scanner tidak akan aktif lagi sampai modal ditutup
-        this.setState({ 
-          participantData: data, 
-          showParticipantModal: true,
-          isProcessing: false,
-          isScanning: false // Matikan scanner selama modal terbuka
-        });
-        
-        // Scanner akan tetap nonaktif sampai modal ditutup
-        // Lihat di closeParticipantModal untuk restart scanner
-        
-      } catch (error) {
-        console.error('Scan error:', error);
-        this.setState({ 
-          error: error.message || "Terjadi kesalahan saat memproses QR code", 
-          isProcessing: false 
-        });
-        
-        // Re-enable scanning after error dengan delay
-        setTimeout(() => {
-          if (!this.state.showParticipantModal) {
-            this.setState({ scanning: true });
-          }
-        }, 2000);
+  onScanSuccess = async (qrCodeMessage) => {
+    try {
+      if (!this.state.scanning) {
+        console.log('Ignoring scan callback when scan is disabled');
+        return;
       }
+      
+      console.log('QR code detected:', qrCodeMessage);
+      
+      // Stop scanning temporarily
+      this.setState({ scanning: false, isProcessing: true });
+      
+      // Process the QR code
+      await this.processQrCode(qrCodeMessage);
+      
+    } catch (error) {
+      console.error('Error in scan success handler:', error);
+      this.setState({
+        error: 'Failed to process QR code: ' + (error.message || 'Unknown error'),
+        isProcessing: false
+      });
+      
+      // Re-enable scanning after error
+      setTimeout(() => {
+        if (this.state.isScanning) { // Only if still supposed to be scanning
+          this.setState({ scanning: true });
+        }
+      }, 2000);
+    }
+  };
+  
+  // Handle manual QR code input change
+  handleManualQrCodeChange = (e) => {
+    this.setState({ manualQrCode: e.target.value });
+  };
+  
+  // Submit manual QR code
+  handleManualQrCodeSubmit = async (e) => {
+    e.preventDefault();
+    const { manualQrCode, isSubmittingManual } = this.state;
+    
+    if (!manualQrCode.trim() || isSubmittingManual) return;
+    
+    try {
+      this.setState({ isSubmittingManual: true, error: null });
+      console.log('Processing manual QR code:', manualQrCode);
+      
+      // Use the same processQrCode function to handle manual input
+      await this.processQrCode(manualQrCode);
+      
+      // Clear the input field after successful processing
+      this.setState({ manualQrCode: '', isSubmittingManual: false });
+    } catch (error) {
+      console.error('Error processing manual QR code:', error);
+      this.setState({ 
+        error: 'Failed to process manual QR code: ' + (error.message || 'Unknown error'),
+        isSubmittingManual: false
+      });
     }
   };
 
@@ -229,6 +219,63 @@ class Scanner extends Component {
         !error.includes('NotFoundError') && 
         !error.includes('No MultiFormat Readers')) {
       console.warn('QR scan error:', error);
+    }
+  };
+
+  processQrCode = async (qrCodeMessage) => {
+    try {
+      // Check if gate is selected
+      const gateId = sessionStorage.getItem('gate_id');
+      const gateType = sessionStorage.getItem('gate_type');
+      
+      if (!gateId || !gateType) {
+        this.setState({ 
+          error: 'Silakan pilih gate terlebih dahulu',
+          isProcessing: false 
+        });
+        return;
+      }
+
+      // Standardize QR code: trim whitespace and convert to uppercase
+      const standardizedQrCode = qrCodeMessage.trim().toUpperCase();
+      console.log(`Standardized QR code: ${standardizedQrCode}`);
+
+      // Get participant data
+      console.log(`Fetching participant data for QR: ${standardizedQrCode}`);
+      const participantResult = await getParticipantByQrCode(standardizedQrCode, gateId, gateType);
+      console.log('Participant result:', participantResult);
+      
+      if (participantResult.error) {
+        this.setState({ 
+          error: participantResult.error.message || 'Failed to fetch participant data',
+          isProcessing: false 
+        });
+        return;
+      }
+      
+      if (!participantResult.data) {
+        this.setState({ 
+          error: 'Peserta tidak ditemukan',
+          isProcessing: false 
+        });
+        return;
+      }
+
+      // Show participant data
+      this.setState({ 
+        participantData: participantResult.data,
+        showParticipantModal: true,
+        isProcessing: false,
+        checkInSuccess: false,
+        checkInError: null
+      });
+      
+    } catch (error) {
+      console.error('Error processing QR code:', error);
+      this.setState({ 
+        error: 'Failed to process QR code: ' + error.message,
+        isProcessing: false 
+      });
     }
   };
 
@@ -387,6 +434,32 @@ class Scanner extends Component {
           </div>
         )}
 
+        {/* Manual QR code input */}
+        <div className="mb-4 p-4 bg-gray-800 border border-gray-700 rounded-lg shadow-md">
+          <form onSubmit={this.handleManualQrCodeSubmit} className="flex flex-col md:flex-row gap-2">
+            <div className="flex-1">
+              <label htmlFor="manualQrCode" className="block text-sm font-medium text-gray-300 mb-1">
+                Input QR Code Manual
+              </label>
+              <input
+                id="manualQrCode"
+                type="text"
+                value={this.state.manualQrCode}
+                onChange={this.handleManualQrCodeChange}
+                placeholder="Masukkan kode QR secara manual"
+                className="w-full px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={this.state.isSubmittingManual || !this.state.manualQrCode.trim()}
+              className={`px-4 py-2 font-medium rounded-md self-end ${this.state.isSubmittingManual || !this.state.manualQrCode.trim() ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+            >
+              {this.state.isSubmittingManual ? 'Processing...' : 'Proses'}
+            </button>
+          </form>
+        </div>
+        
         {/* Scanner container */}
         <div id={this.scannerElementId}></div>
 
