@@ -300,30 +300,36 @@ export const getGateParticipants = async (gateId, gateType) => {
         }
       };
     } else {
-      // For symposium/tickets, use valid_symposium_participant_relations to ensure no orphaned data
-      console.log('Fetching symposium participants from valid_symposium_participant_relations...');
-      const { data: participants, error: participantsError } = await client
-        .from('valid_symposium_participant_relations')
+      // For symposium/tickets, use unique_symposium_participant_view which deduplicates in real-time
+      // This ensures new registrations from the main ticketing system are always reflected
+      console.log('Fetching symposium participants from unique_symposium_participant_view...');
+      const { data: symposiumParticipants, error: symposiumError } = await client
+        .from('unique_symposium_participant_view')
         .select('*')
-        .eq('gate_id', gateId)
-        .eq('gate_type', 'symposium');
+        .eq('symposium_id', gateId);
       
-      if (participantsError) {
-        console.error('Error fetching symposium participants:', participantsError);
-        return { data: null, error: participantsError };
+      if (symposiumError) {
+        console.error('Error fetching symposium participants:', symposiumError);
+        return { data: null, error: symposiumError };
       }
 
-      console.log(`Found ${participants?.length || 0} symposium participants for gate ${gateId}`);
+      console.log(`Found ${symposiumParticipants?.length || 0} symposium participants for gate ${gateId}`);
+      
+      // Log for debugging to check if we're getting duplicates
+      if (symposiumParticipants && symposiumParticipants.length > 0) {
+        const uniqueParticipantCount = new Set(symposiumParticipants.map(p => p.participant_id)).size;
+        console.log(`Found ${uniqueParticipantCount} unique participants out of ${symposiumParticipants.length} total rows`);
+      }
     
       // Process symposium participants data
-      const formattedParticipants = participants.map(participant => {
+      const formattedParticipants = symposiumParticipants.map(participant => {
         return {
           id: participant.participant_id,
-          name: participant.full_name,
+          name: participant.participant_name,
           nik: participant.nik,
           institution: participant.institution,
-          email: participant.email,
-          phone: participant.phone,
+          email: participant.participant_email,
+          phone: participant.participant_phone,
           type: participant.participant_type,
           qr_code: participant.qr_code_id,
           registration_id: participant.registration_id,
@@ -347,7 +353,7 @@ export const getGateParticipants = async (gateId, gateType) => {
   }
 };
 
-// Get a participant by QR code
+// Get a participant by QR code - REFACTORED to use deduplicated views
 export const getParticipantByQrCode = async (qrCode) => {
   try {
     console.log('Starting QR code lookup for:', qrCode);
@@ -359,7 +365,7 @@ export const getParticipantByQrCode = async (qrCode) => {
     const cleanQrCode = qrCode.trim();
     console.log('Cleaned QR code:', cleanQrCode);
     
-    // First, verify the QR code exists
+    // STEP 1: Verify the QR code exists and get participant_id
     console.log('Checking participant_qr_codes table for QR:', cleanQrCode);
     const { data: qrData, error: qrError } = await client
       .from('participant_qr_codes')
@@ -367,9 +373,8 @@ export const getParticipantByQrCode = async (qrCode) => {
       .eq('qr_code_id', cleanQrCode)
       .single();
     
-    if (qrError) {
-      console.error('Error fetching QR code:', qrError);
-      console.error('Error details:', JSON.stringify(qrError));
+    if (qrError || !qrData || !qrData.participant_id) {
+      console.error('Error or no data when fetching QR code:', qrError);
       return { 
         data: null, 
         error: { 
@@ -380,157 +385,116 @@ export const getParticipantByQrCode = async (qrCode) => {
       };
     }
     
-    if (!qrData || !qrData.participant_id) {
-      console.error('QR code found but no participant_id associated with it');
-      return { 
-        data: null, 
-        error: { 
-          message: 'QR code tidak ditemukan',
-          code: 'QR_NOT_FOUND' 
-        } 
-      };
-    }
-    
     const participantId = qrData.participant_id;
     console.log('Found participant_id:', participantId);
     
-    // METHOD 1: First try to get participant from the valid_symposium_participant_relations view
-    // which contains payment_status and other needed fields
-    console.log('Looking up participant in valid_symposium_participant_relations');
-    const { data: symposiumParticipant, error: symposiumError } = await client
-      .from('valid_symposium_participant_relations')
+    // STEP 2: Fetch participant basic data (try from either symposium or workshop view)
+    // First try symposium data
+    const { data: symposiumData, error: symposiumError } = await client
+      .from('unique_symposium_participant_view')
       .select('*')
       .eq('participant_id', participantId)
-      .single();
-      
-    // If successful, format the data and return
-    if (symposiumParticipant && !symposiumError) {
-      console.log('Found participant in valid_symposium_participant_relations:', symposiumParticipant);
-      
-      // Get all gates this participant is registered for
-      console.log('Fetching gates for participant from participant_gate_relations');
-      const { data: gates, error: gatesError } = await client
-        .from('participant_gate_relations')
-        .select('*')
-        .eq('participant_id', participantId);
-      
-      // Even if gates query fails, we can still return the participant data
-      const participantGates = (!gatesError && gates) ? gates : [];
-      console.log('Found gates:', participantGates.length);
-      
-      // Format the response using the data from valid_symposium_participant_relations
-      const formattedParticipant = {
-        id: participantId,
-        name: symposiumParticipant.full_name,
-        type: symposiumParticipant.participant_type,
-        nik: symposiumParticipant.nik,
-        email: symposiumParticipant.email,
-        phone: symposiumParticipant.phone,
-        institution: symposiumParticipant.institution,
-        payment_status: symposiumParticipant.payment_status || 'unpaid',
-        qr_code: cleanQrCode,
-        gates: participantGates
-      };
-      
-      console.log('Successfully constructed participant data with payment_status:', formattedParticipant.payment_status);
-      return { data: formattedParticipant };
-    }
+      .limit(1)
+      .maybeSingle(); // Use maybeSingle to avoid error if not found
     
-    // METHOD 2: If the above fails, try getting from complete_workshop_registration_view
-    console.log('Looking up participant in complete_workshop_registration_view');
-    const { data: workshopParticipant, error: workshopError } = await client
+    // If we didn't find symposium data, try workshop data
+    const { data: workshopData, error: workshopError } = !symposiumData ? await client
       .from('complete_workshop_registration_view')
       .select('*')
       .eq('participant_id', participantId)
-      .single();
-      
-    if (workshopParticipant && !workshopError) {
-      console.log('Found participant in complete_workshop_registration_view:', workshopParticipant);
-      
-      // Get all gates this participant is registered for
-      console.log('Fetching gates for participant from participant_gate_relations');
-      const { data: gates, error: gatesError } = await client
-        .from('participant_gate_relations')
-        .select('*')
-        .eq('participant_id', participantId);
-      
-      // Even if gates query fails, we can still return the participant data
-      const participantGates = (!gatesError && gates) ? gates : [];
-      console.log('Found gates:', participantGates.length);
-      
-      // Format the response using the data from complete_workshop_registration_view
-      const formattedParticipant = {
-        id: participantId,
-        name: workshopParticipant.participant_name,
-        type: workshopParticipant.participant_type,
-        nik: workshopParticipant.nik,
-        email: workshopParticipant.participant_email,
-        phone: workshopParticipant.participant_phone,
-        institution: workshopParticipant.institution,
-        payment_status: workshopParticipant.payment_status || 'unpaid',
-        qr_code: cleanQrCode,
-        gates: participantGates
-      };
-      
-      console.log('Successfully constructed participant data with payment_status:', formattedParticipant.payment_status);
-      return { data: formattedParticipant };
-    }
+      .limit(1)
+      .maybeSingle() : { data: null, error: null };
     
-    // METHOD 3: If both views fail, try the raw participants table and set a default payment_status
-    console.log('Looking up participant in participants table');
-    const { data: rawParticipant, error: rawError } = await client
-      .from('participants')
-      .select('*')
-      .eq('id', participantId)
-      .single();
-      
-    if (rawError || !rawParticipant) {
-      console.error('Error fetching participant from any source');
-      console.error('Symposium error:', JSON.stringify(symposiumError));
-      console.error('Workshop error:', JSON.stringify(workshopError));
-      console.error('Raw participant error:', JSON.stringify(rawError));
-      
-      return { 
-        data: null, 
-        error: { 
+    // If we can't find the participant in either view, return error
+    if (!symposiumData && !workshopData) {
+      console.error('Participant not found in any view');
+      return {
+        data: null,
+        error: {
           message: 'Peserta tidak ditemukan',
           code: 'PARTICIPANT_NOT_FOUND'
-        } 
+        }
       };
     }
     
-    console.log('Found participant in participants table (without payment status):', rawParticipant);
+    // STEP 3: Fetch all registered activities (gates) from the deduplicated views
     
-    // Get all gates this participant is registered for as a last resort
-    console.log('Fetching gates for participant from participant_gate_relations');
-    const { data: gates, error: gatesError } = await client
-      .from('participant_gate_relations')
+    // 3.1: Get symposium registrations from deduplicated view
+    console.log('Fetching symposium registrations from unique_symposium_participant_view');
+    const { data: symposiumActivities, error: symposiumActivitiesError } = await client
+      .from('unique_symposium_participant_view')
       .select('*')
       .eq('participant_id', participantId);
     
-    // Format the response using the data from participants table
-    // Note: payment_status will be set to 'unknown' since it's not in this table
-    const formattedParticipant = {
-      id: participantId,
-      name: rawParticipant.full_name,
-      type: rawParticipant.participant_type,
-      nik: rawParticipant.nik,
-      email: rawParticipant.email,
-      phone: rawParticipant.phone,
-      institution: rawParticipant.institution,
-      payment_status: 'unknown', // We don't know from participants table alone
-      qr_code: cleanQrCode,
-      gates: (!gatesError && gates) ? gates : []
-    };
+    // 3.2: Get workshop registrations from deduplicated view
+    console.log('Fetching workshop registrations from complete_workshop_registration_view');
+    const { data: workshopActivities, error: workshopActivitiesError } = await client
+      .from('complete_workshop_registration_view')
+      .select('*')
+      .eq('participant_id', participantId);
     
-    console.log('Constructed participant data with unknown payment_status');
-    return { 
-      data: formattedParticipant,
-      warning: {
-        message: 'Status pembayaran tidak diketahui',
-        code: 'PAYMENT_STATUS_UNKNOWN'
-      } 
-    };
+    // 3.3: Format symposium activities to match gates format
+    const formattedSymposiumActivities = !symposiumActivitiesError && symposiumActivities ? 
+      symposiumActivities.map(activity => ({
+        participant_id: activity.participant_id,
+        gate_id: activity.symposium_id,
+        gate_name: activity.symposium_name,
+        gate_type: 'symposium',
+        checked_in: activity.checked_in || false,
+        checked_in_at: activity.checked_in_at || null
+      })) : [];
+    
+    // 3.4: Format workshop activities to match gates format
+    const formattedWorkshopActivities = !workshopActivitiesError && workshopActivities ? 
+      workshopActivities.map(activity => ({
+        participant_id: activity.participant_id,
+        gate_id: activity.workshop_id,
+        gate_name: activity.workshop_name,
+        gate_type: 'workshop',
+        checked_in: activity.checked_in || false,
+        checked_in_at: activity.checked_in_at || null
+      })) : [];
+    
+    // 3.5: Combine all activities
+    const participantGates = [...formattedSymposiumActivities, ...formattedWorkshopActivities];
+    console.log(`Found ${participantGates.length} registered activities (deduplicated) for participant`);
+    
+    // STEP 4: Create the participant data object using data from either view
+    let formattedParticipant;
+    
+    if (symposiumData) {
+      // Use data from symposium view
+      formattedParticipant = {
+        id: participantId,
+        name: symposiumData.participant_name,
+        type: symposiumData.participant_type,
+        nik: symposiumData.nik,
+        email: symposiumData.participant_email,
+        phone: symposiumData.participant_phone,
+        institution: symposiumData.institution,
+        payment_status: symposiumData.payment_status || 'unpaid',
+        qr_code: cleanQrCode,
+        gates: participantGates
+      };
+    } else {
+      // Use data from workshop view
+      formattedParticipant = {
+        id: participantId,
+        name: workshopData.participant_name,
+        type: workshopData.participant_type,
+        nik: workshopData.nik,
+        email: workshopData.participant_email,
+        phone: workshopData.participant_phone,
+        institution: workshopData.institution,
+        payment_status: workshopData.payment_status || 'unpaid',
+        qr_code: cleanQrCode,
+        gates: participantGates
+      };
+    }
+    
+    console.log('Successfully constructed participant data with payment_status:', formattedParticipant.payment_status);
+    return { data: formattedParticipant };
+    
   } catch (error) {
     console.error('Error in getParticipantByQrCode:', error);
     return { 
