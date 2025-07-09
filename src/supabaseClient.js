@@ -258,45 +258,87 @@ export const getGateParticipants = async (gateId, gateType) => {
       gate = { ...data, type: 'ticket' };
     }
     
-    // Get participants from the new deduplicated view, filtered by gate
-    console.log('Fetching participants from unique_participant_gate_relations...');
-    const { data: participants, error: participantsError } = await client
-      .from('unique_participant_gate_relations')
-      .select('*')
-      .eq('gate_id', gateId)
-      .eq('gate_type', gateType === 'ticket' ? 'symposium' : gateType);
-    
-    if (participantsError) {
-      console.error('Error fetching participants:', participantsError);
-      return { data: null, error: participantsError };
-    }
-
-    console.log(`Found ${participants?.length || 0} participants for gate ${gateId}`);
-
-    // Process participants data to match the expected format in components
-    const formattedParticipants = participants.map(participant => {
-      return {
-        id: participant.participant_id,
-        name: participant.full_name,
-        nik: participant.nik,
-        institution: participant.institution,
-        email: participant.email,
-        phone: participant.phone,
-        type: participant.participant_type,
-        qr_code: participant.qr_code_id,
-        registration_id: participant.registration_id,
-        payment_status: participant.payment_status || 'unverified',
-        checked_in: participant.checked_in,
-        checked_in_at: participant.checked_in_at
-      };
-    });
-
-    return {
-      data: {
-        gate,
-        participants: formattedParticipants
+    // Get participants based on gate type
+    if (gateType === 'workshop') {
+      // For workshops, use the new complete_workshop_registration_view
+      console.log('Fetching workshop participants from complete_workshop_registration_view...');
+      const { data: workshopParticipants, error: workshopError } = await client
+        .from('complete_workshop_registration_view')
+        .select('*')
+        .eq('workshop_id', gateId);
+      
+      if (workshopError) {
+        console.error('Error fetching workshop participants:', workshopError);
+        return { data: null, error: workshopError };
       }
-    };
+
+      console.log(`Found ${workshopParticipants?.length || 0} workshop participants`);
+      
+      // Process workshop participants data
+      const formattedParticipants = workshopParticipants.map(participant => {
+        return {
+          id: participant.participant_id,
+          name: participant.participant_name,
+          nik: participant.nik,
+          institution: participant.institution,
+          email: participant.participant_email,
+          phone: participant.participant_phone,
+          type: participant.participant_type,
+          qr_code: participant.qr_code_id,
+          registration_id: participant.registration_id,
+          payment_status: participant.payment_status || 'unverified',
+          checked_in: participant.checked_in,
+          checked_in_at: participant.checked_in_at
+        };
+      });
+
+      return {
+        data: {
+          gate,
+          participants: formattedParticipants
+        }
+      };
+    } else {
+      // For symposium/tickets, use valid_symposium_participant_relations to ensure no orphaned data
+      console.log('Fetching symposium participants from valid_symposium_participant_relations...');
+      const { data: participants, error: participantsError } = await client
+        .from('valid_symposium_participant_relations')
+        .select('*')
+        .eq('gate_id', gateId)
+        .eq('gate_type', 'symposium');
+      
+      if (participantsError) {
+        console.error('Error fetching symposium participants:', participantsError);
+        return { data: null, error: participantsError };
+      }
+
+      console.log(`Found ${participants?.length || 0} symposium participants for gate ${gateId}`);
+    
+      // Process symposium participants data
+      const formattedParticipants = participants.map(participant => {
+        return {
+          id: participant.participant_id,
+          name: participant.full_name,
+          nik: participant.nik,
+          institution: participant.institution,
+          email: participant.email,
+          phone: participant.phone,
+          type: participant.participant_type,
+          qr_code: participant.qr_code_id,
+          registration_id: participant.registration_id,
+          payment_status: participant.payment_status || 'unverified',
+          checked_in: participant.checked_in,
+          checked_in_at: participant.checked_in_at
+        };
+      });
+
+      return {
+        data: {
+          gate,
+          participants: formattedParticipants
+        }
+      };
+    }
   } catch (error) {
     console.error('Error in getGateParticipants:', error);
     return { data: null, error };
