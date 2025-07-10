@@ -462,6 +462,39 @@ export const getParticipantByQrCode = async (qrCode) => {
     // STEP 4: Create the participant data object using data from either view
     let formattedParticipant;
     
+    // Determine payment status from any available source
+    // If verified in either symposium or workshop data, consider as paid
+    let consolidatedPaymentStatus = 'unpaid';
+    
+    // Helper function to check if payment is verified
+    const isPaymentVerified = (status) => {
+      return status === 'verified' || status === 'paid';
+    };
+    
+    // Check symposium data for payment status
+    if (symposiumData && isPaymentVerified(symposiumData.payment_status)) {
+      consolidatedPaymentStatus = 'paid';
+      console.log('Payment verified from symposium data');
+    }
+    
+    // Check workshop data for payment status
+    if (workshopData && isPaymentVerified(workshopData.payment_status)) {
+      consolidatedPaymentStatus = 'paid';
+      console.log('Payment verified from workshop data');
+    }
+    
+    // Also check any activities in case they have payment information
+    if (symposiumActivities && symposiumActivities.some(activity => isPaymentVerified(activity.payment_status))) {
+      consolidatedPaymentStatus = 'paid';
+      console.log('Payment verified from symposium activities');
+    }
+    
+    if (workshopActivities && workshopActivities.some(activity => isPaymentVerified(activity.payment_status))) {
+      consolidatedPaymentStatus = 'paid';
+      console.log('Payment verified from workshop activities');
+    }
+    
+    // Use either symposium or workshop data for participant details
     if (symposiumData) {
       // Use data from symposium view
       formattedParticipant = {
@@ -472,7 +505,7 @@ export const getParticipantByQrCode = async (qrCode) => {
         email: symposiumData.participant_email,
         phone: symposiumData.participant_phone,
         institution: symposiumData.institution,
-        payment_status: symposiumData.payment_status || 'unpaid',
+        payment_status: consolidatedPaymentStatus, // Use consolidated status
         qr_code: cleanQrCode,
         gates: participantGates
       };
@@ -486,7 +519,7 @@ export const getParticipantByQrCode = async (qrCode) => {
         email: workshopData.participant_email,
         phone: workshopData.participant_phone,
         institution: workshopData.institution,
-        payment_status: workshopData.payment_status || 'unpaid',
+        payment_status: consolidatedPaymentStatus, // Use consolidated status
         qr_code: cleanQrCode,
         gates: participantGates
       };
